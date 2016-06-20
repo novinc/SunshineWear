@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background">#1ca8f4</color>
+    <color name="white">#ffffff</color>
+    <color name="time_color">#ffffff</color>
+    <color name="max_color">#ffffff</color>
+    <color name="date_color">#b5e2fb</color>
+    <color name="min_color">#b5e2fb</color>
+    <color name="separator_color">#60c2f7</color>
+</resources>
