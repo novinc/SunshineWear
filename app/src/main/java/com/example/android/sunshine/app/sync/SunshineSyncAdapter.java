@@ -24,6 +24,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.annotation.IntDef;
+import android.support.annotation.NonNull;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.TaskStackBuilder;
 import android.text.format.Time;
@@ -36,12 +37,22 @@ import com.example.android.sunshine.app.R;
 import com.example.android.sunshine.app.Utility;
 import com.example.android.sunshine.app.data.WeatherContract;
 import com.example.android.sunshine.app.muzei.WeatherMuzeiSource;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.PendingResult;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.Asset;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
+import com.google.android.gms.wearable.Wearable;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -63,6 +74,14 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
     private static final long DAY_IN_MILLIS = 1000 * 60 * 60 * 24;
     private static final int WEATHER_NOTIFICATION_ID = 3004;
 
+    // used for android wear watchface
+    private static GoogleApiClient mGoogleApiClient;
+    private static boolean watch = false;
+    private static final String weatherPath = "/weather";
+    private static final String iconKey = "icon";
+    private static final String minKey = "min";
+    private static final String maxKey = "max";
+    private static long lastWatchPush = 0;
 
     private static final String[] NOTIFY_WEATHER_PROJECTION = new String[] {
             WeatherContract.WeatherEntry.COLUMN_WEATHER_ID,
@@ -89,11 +108,38 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
 
     public SunshineSyncAdapter(Context context, boolean autoInitialize) {
         super(context, autoInitialize);
+        if (mGoogleApiClient == null) {
+            mGoogleApiClient = new GoogleApiClient.Builder(getContext())
+                    .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
+                        @Override
+                        public void onConnected(Bundle connectionHint) {
+                            Log.d(LOG_TAG, "onConnected: " + connectionHint);
+                            // Now you can use the Data Layer API
+                            watch = true;
+                        }
+                        @Override
+                        public void onConnectionSuspended(int cause) {
+                            Log.d(LOG_TAG, "onConnectionSuspended: " + cause);
+                            watch = false;
+                        }
+                    })
+                    .addOnConnectionFailedListener(new GoogleApiClient.OnConnectionFailedListener() {
+                        @Override
+                        public void onConnectionFailed(@NonNull ConnectionResult result) {
+                            Log.d(LOG_TAG, "onConnectionFailed: " + result);
+                            watch = false;
+                        }
+                    })
+                    // Request access only to the Wearable API
+                    .addApi(Wearable.API)
+                    .build();
+        }
     }
 
     @Override
     public void onPerformSync(Account account, Bundle extras, String authority, ContentProviderClient provider, SyncResult syncResult) {
         Log.d(LOG_TAG, "Starting sync");
+        mGoogleApiClient.connect();
         String locationQuery = Utility.getPreferredLocation(getContext());
 
         // These two need to be declared outside the try/catch
@@ -435,6 +481,9 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                     }
                     String title = context.getString(R.string.app_name);
 
+                    // send to watchface
+                    notifyWatch(largeIcon, high, low);
+
                     // Define the text of the forecast.
                     String contentText = String.format(context.getString(R.string.format_notification),
                             desc,
@@ -479,6 +528,49 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                     editor.commit();
                 }
                 cursor.close();
+            }
+        }
+    }
+
+    /**
+     * Notify android wear watchface about new high and low and give the condition icon as asset
+     * @param largeIcon the bitmap for the condition icon
+     * @param high max temp
+     * @param low min temp
+     */
+    private void notifyWatch(Bitmap largeIcon, double high, double low) {
+        if (watch) {
+            PutDataMapRequest request = PutDataMapRequest.create(weatherPath);
+            request.getDataMap().putDouble(maxKey, high);
+            request.getDataMap().putDouble(minKey, low);
+            request.getDataMap().putAsset(iconKey, toAsset(largeIcon));
+            request.setUrgent();
+            PutDataRequest putDataRequest = request.asPutDataRequest();
+            PendingResult<DataApi.DataItemResult> pendingResult =
+                    Wearable.DataApi.putDataItem(mGoogleApiClient, putDataRequest);
+            pendingResult.await();
+            mGoogleApiClient.disconnect();
+        }
+    }
+
+    /**
+     * Turn the bitmap to an Asset so we can send it to watch
+     * @param bitmap the image
+     * @return the Asset made from bitmap
+     */
+    private static Asset toAsset(Bitmap bitmap) {
+        ByteArrayOutputStream byteStream = null;
+        try {
+            byteStream = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteStream);
+            return Asset.createFromBytes(byteStream.toByteArray());
+        } finally {
+            if (null != byteStream) {
+                try {
+                    byteStream.close();
+                } catch (IOException e) {
+                    // ignore
+                }
             }
         }
     }
