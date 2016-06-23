@@ -25,12 +25,12 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.ColorFilter;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -53,8 +53,10 @@ import com.google.android.gms.wearable.DataApi;
 import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
 import com.google.android.gms.wearable.DataItem;
+import com.google.android.gms.wearable.DataItemBuffer;
 import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
 
 import java.io.InputStream;
@@ -128,7 +130,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
         Paint mMinPaint;
         Paint mIconPaint;
         Bitmap icon;
-        Bitmap bwicon;
+        Bitmap BWIcon;
         boolean mAmbient;
         Calendar mCalendar;
         final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
@@ -189,7 +191,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             mTempOffset = resources.getDimension(R.dimen.temp_y_offset);
 
             icon = null;
-            bwicon = null;
+            BWIcon = null;
 
             mBackgroundPaint = new Paint();
             mBackgroundPaint.setColor(ContextCompat.getColor(getApplicationContext(), R.color.background));
@@ -504,7 +506,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             if (icon != null) {
                 Bitmap toDraw = null;
                 if (isInAmbientMode()) {
-                    toDraw = bwicon;
+                    toDraw = BWIcon;
                 } else {
                     toDraw = icon;
                 }
@@ -549,6 +551,17 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
         @Override
         public void onConnected(@Nullable Bundle bundle) {
             Wearable.DataApi.addListener(mGoogleApiClient, this);
+            Wearable.DataApi.getDataItems(mGoogleApiClient, new Uri.Builder().scheme(PutDataRequest.WEAR_URI_SCHEME).path(weatherPath).build()).setResultCallback(new ResultCallback<DataItemBuffer>() {
+                @Override
+                public void onResult(@NonNull DataItemBuffer dataItems) {
+                    for (DataItem dataItem : dataItems) {
+                        DataMap dataMap = DataMapItem.fromDataItem(dataItem).getDataMap();
+                        maxWeather = String.format(Locale.ENGLISH, "%d", (int) dataMap.getDouble(maxKey));
+                        minWeather = String.format(Locale.ENGLISH, "%d", (int) dataMap.getDouble(minKey));
+                        loadBitmapFromAsset(dataMap, dataMap.getAsset(iconKey));
+                    }
+                }
+            });
         }
 
         @Override
@@ -604,11 +617,11 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
         }
 
         private void makeBWIcon() {
-            bwicon = Bitmap.createBitmap(
+            BWIcon = Bitmap.createBitmap(
                     icon.getWidth(),
                     icon.getHeight(),
                     Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(bwicon);
+            Canvas canvas = new Canvas(BWIcon);
             Paint grayPaint = new Paint();
             ColorMatrix colorMatrix = new ColorMatrix();
             colorMatrix.setSaturation(0);
