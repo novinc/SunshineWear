@@ -380,16 +380,6 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                     int artResourceId = Utility.getArtResourceForWeatherCondition(weatherId);
                     String artUrl = Utility.getArtUrlForWeatherCondition(getContext(), weatherId);
                     Resources resources = getContext().getResources();
-                    // On Honeycomb and higher devices, we can retrieve the size of the large icon
-                    // Prior to that, we use a fixed size
-                    @SuppressLint("InlinedApi")
-                    int largeIconWidth = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                            ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_width)
-                            : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
-                    @SuppressLint("InlinedApi")
-                    int largeIconHeight = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                            ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_height)
-                            : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
                     Bitmap largeIcon;
                     try {
                         largeIcon = Glide.with(getContext())
@@ -397,7 +387,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                                 .asBitmap()
                                 .error(artResourceId)
                                 .fitCenter()
-                                .into(largeIconWidth, largeIconHeight).get();
+                                .into(75, 75).get();
                     } catch (InterruptedException | ExecutionException e) {
                         Log.e(LOG_TAG, "Error retrieving large icon from " + artUrl, e);
                         largeIcon = BitmapFactory.decodeResource(resources, artResourceId);
@@ -509,9 +499,6 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                     }
                     String title = context.getString(R.string.app_name);
 
-                    // send to watchface
-                    notifyWatch(largeIcon, high, low);
-
                     // Define the text of the forecast.
                     String contentText = String.format(context.getString(R.string.format_notification),
                             desc,
@@ -569,8 +556,8 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
     private void notifyWatch(Bitmap largeIcon, double high, double low) {
         if (watch) {
             PutDataMapRequest request = PutDataMapRequest.create(weatherPath);
-            request.getDataMap().putDouble(maxKey, high);
-            request.getDataMap().putDouble(minKey, low);
+            request.getDataMap().putDouble(maxKey, Utility.isMetric(getContext()) ? high : (high * 1.8) + 32);
+            request.getDataMap().putDouble(minKey, Utility.isMetric(getContext()) ? low : (low * 1.8) + 32);
             request.getDataMap().putAsset(iconKey, toAsset(largeIcon));
             request.setUrgent();
             PutDataRequest putDataRequest = request.asPutDataRequest();

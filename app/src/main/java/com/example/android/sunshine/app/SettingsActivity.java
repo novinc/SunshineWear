@@ -18,15 +18,27 @@ package com.example.android.sunshine.app;
 import android.annotation.TargetApi;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceManager;
+import android.util.Log;
 
 import com.example.android.sunshine.app.data.WeatherContract;
+import com.example.android.sunshine.app.data.WeatherDbHelper;
+import com.example.android.sunshine.app.data.WeatherProvider;
 import com.example.android.sunshine.app.sync.SunshineSyncAdapter;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.PendingResult;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
+import com.google.android.gms.wearable.Wearable;
 
 /**
  * A {@link PreferenceActivity} that presents a set of application settings.
@@ -39,6 +51,14 @@ import com.example.android.sunshine.app.sync.SunshineSyncAdapter;
 public class SettingsActivity extends PreferenceActivity
         implements Preference.OnPreferenceChangeListener, SharedPreferences.OnSharedPreferenceChangeListener {
 
+    private static final String TAG = "settingsActivity";
+    private GoogleApiClient mGoogleApiClient;
+    private boolean watch = false;
+    private static final String weatherPath = "/weather";
+    private static final String iconKey = "icon";
+    private static final String minKey = "min";
+    private static final String maxKey = "max";
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -50,6 +70,43 @@ public class SettingsActivity extends PreferenceActivity
         bindPreferenceSummaryToValue(findPreference(getString(R.string.pref_location_key)));
         bindPreferenceSummaryToValue(findPreference(getString(R.string.pref_units_key)));
         bindPreferenceSummaryToValue(findPreference(getString(R.string.pref_art_pack_key)));
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
+                    @Override
+                    public void onConnected(Bundle connectionHint) {
+                        Log.d(TAG, "onConnected: " + connectionHint);
+                        // Now you can use the Data Layer API
+                        watch = true;
+                    }
+                    @Override
+                    public void onConnectionSuspended(int cause) {
+                        Log.d(TAG, "onConnectionSuspended: " + cause);
+                        watch = false;
+                    }
+                })
+                .addOnConnectionFailedListener(new GoogleApiClient.OnConnectionFailedListener() {
+                    @Override
+                    public void onConnectionFailed(ConnectionResult result) {
+                        Log.d(TAG, "onConnectionFailed: " + result);
+                        watch = false;
+                    }
+                })
+                // Request access only to the Wearable API
+                .addApi(Wearable.API)
+                .build();
+        mGoogleApiClient.connect();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mGoogleApiClient.connect();
+    }
+
+    @Override
+    protected void onStop() {
+        mGoogleApiClient.disconnect();
+        super.onStop();
     }
 
     // Registers a shared preference change listener that gets notified when preferences change
@@ -139,6 +196,25 @@ public class SettingsActivity extends PreferenceActivity
         } else if ( key.equals(getString(R.string.pref_units_key)) ) {
             // units have changed. update lists of weather entries accordingly
             getContentResolver().notifyChange(WeatherContract.WeatherEntry.CONTENT_URI, null);
+            // update watch
+            if (watch) {
+                String locationQuery = Utility.getPreferredLocation(getApplicationContext());
+                Uri weatherUri = WeatherContract.WeatherEntry.buildWeatherLocationWithDate(locationQuery, System.currentTimeMillis());
+                Cursor cursor = getContentResolver().query(weatherUri, new String[]{
+                        WeatherContract.WeatherEntry.COLUMN_MAX_TEMP,
+                        WeatherContract.WeatherEntry.COLUMN_MIN_TEMP}, null, null, null);
+                assert cursor != null;
+                cursor.moveToFirst();
+                double high = cursor.getDouble(0);
+                double low = cursor.getDouble(1);
+                cursor.close();
+                PutDataMapRequest request = PutDataMapRequest.create(weatherPath);
+                request.getDataMap().putDouble(maxKey, Utility.isMetric(getApplicationContext()) ? high : (high * 1.8) + 32);
+                request.getDataMap().putDouble(minKey, Utility.isMetric(getApplicationContext()) ? low : (low * 1.8) + 32);
+                request.setUrgent();
+                PutDataRequest putDataRequest = request.asPutDataRequest();
+                Wearable.DataApi.putDataItem(mGoogleApiClient, putDataRequest);
+            }
         } else if ( key.equals(getString(R.string.pref_location_status_key)) ) {
             // our location status has changed.  Update the summary accordingly
             Preference locationPreference = findPreference(getString(R.string.pref_location_key));

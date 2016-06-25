@@ -332,13 +332,11 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                     mIconPaint.setAntiAlias(!inAmbientMode);
                 }
                 if (inAmbientMode) {
-                    Wearable.DataApi.removeListener(mGoogleApiClient, this);
                     mDatePaint.setColor(ContextCompat.getColor(getApplicationContext(), R.color.white));
                     mSeparatorPaint.setColor(ContextCompat.getColor(getApplicationContext(), R.color.white));
                     mMaxPaint.setColor(ContextCompat.getColor(getApplicationContext(), R.color.white));
                     mMinPaint.setColor(ContextCompat.getColor(getApplicationContext(), R.color.white));
                 } else {
-                    Wearable.DataApi.addListener(mGoogleApiClient, this);
                     mDatePaint.setColor(ContextCompat.getColor(getApplicationContext(), R.color.date_color));
                     mSeparatorPaint.setColor(ContextCompat.getColor(getApplicationContext(), R.color.separator_color));
                     mMaxPaint.setColor(ContextCompat.getColor(getApplicationContext(), R.color.max_color));
@@ -511,7 +509,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                     toDraw = icon;
                 }
                 canvas.drawBitmap(toDraw, new Rect(0, 0, icon.getWidth(), icon.getHeight()),
-                        new Rect(dateOffsetSave, (int) mTempOffset - 40, dateOffsetSave + 50, (int) mTempOffset + 10),
+                        new Rect(dateOffsetSave - 25, (int) mTempOffset - 50, dateOffsetSave + 50, (int) mTempOffset + 25),
                         mIconPaint);
             }
         }
@@ -556,10 +554,11 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                 public void onResult(@NonNull DataItemBuffer dataItems) {
                     for (DataItem dataItem : dataItems) {
                         DataMap dataMap = DataMapItem.fromDataItem(dataItem).getDataMap();
-                        maxWeather = String.format(Locale.ENGLISH, "%d", (int) dataMap.getDouble(maxKey));
-                        minWeather = String.format(Locale.ENGLISH, "%d", (int) dataMap.getDouble(minKey));
-                        loadBitmapFromAsset(dataMap, dataMap.getAsset(iconKey));
+                        maxWeather = String.format(Locale.ENGLISH, "%d", (int) Math.round(dataMap.getDouble(maxKey)));
+                        minWeather = String.format(Locale.ENGLISH, "%d", (int) Math.round(dataMap.getDouble(minKey)));
+                        loadBitmapFromAssetThenUpdateWeather(dataMap, dataMap.getAsset(iconKey));
                     }
+                    dataItems.release();
                 }
             });
         }
@@ -581,20 +580,26 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                     DataItem item = event.getDataItem();
                     if (item.getUri().getPath().equals(weatherPath)) {
                         DataMap dataMap = DataMapItem.fromDataItem(item).getDataMap();
-                        loadBitmapFromAsset(dataMap, dataMap.getAsset(iconKey));
+                        Asset asset = dataMap.getAsset(iconKey);
+                        if (asset != null) {
+                            loadBitmapFromAssetThenUpdateWeather(dataMap, dataMap.getAsset(iconKey));
+                        } else {
+                            updateWeather(dataMap.getDouble(maxKey), dataMap.getDouble(minKey));
+                        }
                     }
                 }
             }
+            dataEventBuffer.release();
         }
 
-        private void updateWeather(Bitmap bitmap, double max, double min) {
-            maxWeather = String.format(Locale.ENGLISH, "%d", (int) max);
-            minWeather = String.format(Locale.ENGLISH, "%d", (int) min);
+        private void updateWeather(double max, double min) {
+            maxWeather = String.format(Locale.ENGLISH, "%d", (int) Math.round(max));
+            minWeather = String.format(Locale.ENGLISH, "%d", (int) Math.round(min));
             lastUpdate = System.currentTimeMillis();
             invalidate();
         }
 
-        public void loadBitmapFromAsset(final DataMap dataMap, Asset asset) {
+        public void loadBitmapFromAssetThenUpdateWeather(final DataMap dataMap, Asset asset) {
             if (asset == null) {
                 throw new IllegalArgumentException("Asset must be non-null");
             }
@@ -611,7 +616,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                     // decode the stream into a bitmap
                     icon = BitmapFactory.decodeStream(assetInputStream);
                     makeBWIcon();
-                    updateWeather(icon, dataMap.getDouble(maxKey), dataMap.getDouble(minKey));
+                    updateWeather(dataMap.getDouble(maxKey, Double.parseDouble(maxWeather)), dataMap.getDouble(minKey, Double.parseDouble(minWeather)));
                 }
             });
         }
