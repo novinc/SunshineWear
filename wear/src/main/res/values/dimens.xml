@@ -7,22 +7,30 @@
     <dimen name="digital_y_offset">90dp</dimen>
 
     <dimen name="time_y_offset">70dp</dimen>
+    <dimen name="time_y_offset_round">90dp</dimen>
 
     <dimen name="hour_size">35dp</dimen>
     <dimen name="minute_size">35dp</dimen>
     <dimen name="second_size">30dp</dimen>
+    <dimen name="hour_size_round">40dp</dimen>
+    <dimen name="minute_size_round">40dp</dimen>
+    <dimen name="second_size_round">35dp</dimen>
 
     <dimen name="date_y_offset">90dp</dimen>
     <dimen name="date_size">12dp</dimen>
+    <dimen name="date_y_offset_round">115dp</dimen>
+    <dimen name="date_size_round">15dp</dimen>
 
     <dimen name="separator_y_offset">107dp</dimen>
     <dimen name="separator_length">45dp</dimen>
-
-    <dimen name="weather_icon_x_offset">15dp</dimen>
-    <dimen name="weather_icon_y_offset">135dp</dimen>
+    <dimen name="separator_y_offset_round">130dp</dimen>
+    <dimen name="separator_length_round">45dp</dimen>
 
     <dimen name="max_size">20dp</dimen>
     <dimen name="min_size">20dp</dimen>
     <dimen name="temp_y_offset">135dp</dimen>
+    <dimen name="max_size_round">25dp</dimen>
+    <dimen name="min_size_round">25dp</dimen>
+    <dimen name="temp_y_offset_round">163dp</dimen>
 
 </resources>

@@ -140,8 +140,6 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                 invalidate();
             }
         };
-        float mXOffset;
-        float mYOffset;
         float mTimeYOffset;
         float mDateYOffset;
         float mSeparatorYOffset;
@@ -183,7 +181,6 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                     .setHotwordIndicatorGravity(Gravity.TOP | Gravity.END)
                     .build());
             Resources resources = SunshineWatchFace.this.getResources();
-            mYOffset = resources.getDimension(R.dimen.digital_y_offset);
             mTimeYOffset = resources.getDimension(R.dimen.time_y_offset);
             mDateYOffset = resources.getDimension(R.dimen.date_y_offset);
             mSeparatorYOffset = resources.getDimension(R.dimen.separator_y_offset);
@@ -293,9 +290,20 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             // Load resources that have alternate values for round watches.
             Resources resources = SunshineWatchFace.this.getResources();
             boolean isRound = insets.isRound();
-            mXOffset = resources.getDimension(isRound
-                    ? R.dimen.digital_x_offset_round : R.dimen.digital_x_offset);
             // TODO : apply round vs square differences
+            if (isRound) {
+                mHourPaint.setTextSize(resources.getDimension(R.dimen.hour_size_round));
+                mMinutePaint.setTextSize(resources.getDimension(R.dimen.minute_size_round));
+                mSecondsPaint.setTextSize(resources.getDimension(R.dimen.second_size_round));
+                mDatePaint.setTextSize(resources.getDimension(R.dimen.date_size_round));
+                mMaxPaint.setTextSize(resources.getDimension(R.dimen.max_size_round));
+                mMinPaint.setTextSize(resources.getDimension(R.dimen.min_size_round));
+                mTimeYOffset = resources.getDimension(R.dimen.time_y_offset_round);
+                mDateYOffset = resources.getDimension(R.dimen.date_y_offset_round);
+                mSeparatorYOffset = resources.getDimension(R.dimen.separator_y_offset_round);
+                mSeparatorLength = resources.getDimension(R.dimen.separator_length_round);
+                mTempOffset = resources.getDimension(R.dimen.temp_y_offset_round);
+            }
             //mTimeXOffset = resources.getDimension(isRound
             //        ? R.dimen.hour_x_offset : R.dimen.hour_x_offset);
 //            float textSize = resources.getDimension(isRound
@@ -556,7 +564,11 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                         DataMap dataMap = DataMapItem.fromDataItem(dataItem).getDataMap();
                         maxWeather = String.format(Locale.ENGLISH, "%d", (int) Math.round(dataMap.getDouble(maxKey)));
                         minWeather = String.format(Locale.ENGLISH, "%d", (int) Math.round(dataMap.getDouble(minKey)));
-                        loadBitmapFromAssetThenUpdateWeather(dataMap, dataMap.getAsset(iconKey));
+                        if (dataMap.getAsset(iconKey) != null) {
+                            loadBitmapFromAssetThenUpdateWeather(dataMap, dataMap.getAsset(iconKey));
+                        } else {
+                            updateWeather(dataMap.getDouble(maxKey), dataMap.getDouble(minKey));
+                        }
                     }
                     dataItems.release();
                 }
